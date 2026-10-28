@@ -1,6 +1,11 @@
+import dns from "node:dns";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { ensurePrivateDir, paths, readJsonFile, writePrivateFile } from "../lib/config";
+
+// API tokens are usually IP-filtered to the host's public IPv4 address. On a dual-stack host the
+// API call would otherwise go out over IPv6 and be refused (Cloudflare error 9109).
+dns.setDefaultResultOrder("ipv4first");
 
 /**
  * Creates (and tears down) everything Cloudflare-side, through the API:

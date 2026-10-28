@@ -63,7 +63,7 @@ Create a custom API token at dash.cloudflare.com → My Profile → API Tokens w
 | Zone (your zone only) | DNS: Edit |
 | Zone (your zone only) | Zone: Read |
 
-Identity Providers needs Edit only if your account has no one-time PIN login yet; provisioning adds one. You can delete the token from Cloudflare when setup is done. You only need it again for `teardown`.
+Identity Providers needs Edit only if your account has no one-time PIN login yet; provisioning adds one. Limit the token to your zone, a short expiry, and your server's public IPv4 address (Client IP address filtering); provisioning calls the API over IPv4 so that filter works on dual-stack hosts. You can delete the token from Cloudflare when setup is done. You only need it again for `teardown`.
 
 ### Provision
 
