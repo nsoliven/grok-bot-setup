@@ -68,7 +68,6 @@ describe("assertSchema", () => {
       CREATE TABLE orchestration_v2_projection_threads (thread_id, project_id, title, runtime_mode, updated_at, archived_at, deleted_at, payload_json);
       CREATE TABLE orchestration_v2_projection_runs (run_id, thread_id, ordinal, status, requested_at);
       CREATE TABLE orchestration_v2_projection_runtime_requests (runtime_request_id, thread_id, kind, status, created_at);
-      CREATE TABLE orchestration_v2_projection_messages (thread_id, role, streaming, created_at, payload_json);
       CREATE TABLE projection_projects (project_id, title);
     `);
     expect(() => assertSchema(db)).toThrow(SchemaMismatchError);

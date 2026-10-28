@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Installs cloudflared (Cloudflare's signed apt repo) and a hardened system service that routes
-# exactly one hostname's /mcp path to the gateway on 127.0.0.1. Needs sudo.
-#   scripts/install-tunnel.sh install --tunnel-id ID --hostname HOST --credentials FILE [--port 47731]
+# Installs cloudflared (Cloudflare's signed apt repo) and a hardened system service that routes one
+# hostname's MCP sign-in and /mcp paths to T3 on 127.0.0.1. Needs sudo.
+#   scripts/install-tunnel.sh install --tunnel-id ID --hostname HOST --credentials FILE [--port 3773]
 #   scripts/install-tunnel.sh uninstall
 set -euo pipefail
 
@@ -23,7 +23,7 @@ install_cloudflared() {
 }
 
 do_install() {
-  local tunnel_id="" hostname="" credentials="" port=47731
+  local tunnel_id="" hostname="" credentials="" port=3773
   while [[ $# -gt 0 ]]; do
     case "$1" in
       --tunnel-id) tunnel_id="$2"; shift 2 ;;
@@ -42,7 +42,7 @@ do_install() {
 
   sudo install -d -m 0700 -o root -g root "$etc"
   sudo install -m 0600 -o root -g root "$credentials" "$etc/tunnel.json"
-  sed -e "s|TUNNEL_ID|$tunnel_id|" -e "s|HOSTNAME|$hostname|" -e "s|GATEWAY_PORT|$port|" \
+  sed -e "s|TUNNEL_ID|$tunnel_id|" -e "s|HOSTNAME|$hostname|" -e "s|T3_PORT|$port|" \
     "$repo/deploy/cloudflared/config.example.yml" | sudo tee "$etc/config.yml" >/dev/null
   sudo chmod 0600 "$etc/config.yml"
   sudo install -m 0644 "$repo/deploy/systemd/system/$unit" "/etc/systemd/system/$unit"

@@ -37,7 +37,6 @@ export const paths = {
   // systemd sets STATE_DIRECTORY from the units' StateDirectory=.
   stateDir: expandHome(stringSetting("STATE_DIRECTORY") ?? stringSetting("GBS_STATE_DIR", "~/.local/state/grok-bot-setup")),
   t3StateDb: expandHome(stringSetting("T3_STATE_DB", "~/.t3/userdata/statev2.sqlite")),
-  t3Home: expandHome(stringSetting("T3_HOME", "~/.t3")),
 };
 
 function assertPrivate(path: string, kind: "file" | "directory"): void {
@@ -58,12 +57,6 @@ export function readSecret(name: string): string {
   const value = readFileSync(file, "utf8").trim();
   if (!value) throw new Error(`${file} is empty.`);
   return value;
-}
-
-export function writeSecret(name: string, value: string): void {
-  mkdirSync(paths.secretsDir, { recursive: true, mode: 0o700 });
-  assertPrivate(paths.secretsDir, "directory");
-  writePrivateFile(join(paths.secretsDir, name), `${value}\n`);
 }
 
 /**

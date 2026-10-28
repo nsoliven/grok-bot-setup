@@ -2,7 +2,7 @@ import type { Database } from "bun:sqlite";
 import { hostname } from "node:os";
 import { flagSetting, numberSetting, paths, readJsonFile, stringSetting, writePrivateFile } from "../lib/config";
 import { postToAssistant } from "../lib/webhook";
-import { files, readPausedUntil, type CredentialMeta } from "./files";
+import { files, readPausedUntil } from "./files";
 import { buildMaintenancePayload, buildNeedsYouPayload, type PayloadOptions } from "./payload";
 import { DEFAULT_POLICY, EMPTY_STATE, planNotices, prune, recordSent, type PolicyConfig, type WatchState } from "./policy";
 import { openT3State, readSnapshot, SchemaMismatchError } from "./state";
@@ -41,7 +41,6 @@ export function loadWatchSettings(): WatchSettings {
 
 interface MaintenanceState {
   lastProblemAt?: string;
-  lastCredentialWarningAt?: string;
 }
 
 const DAY = 86_400_000;
@@ -52,29 +51,13 @@ async function sendMaintenance(
   detail: string,
   now: Date,
   settings: WatchSettings,
-  expiresAt?: string,
 ): Promise<void> {
   const state = readJsonFile<MaintenanceState>(files.maintenance) ?? {};
   const last = state[key];
   if (last && now.getTime() - Date.parse(last) < DAY) return;
-  const result = await postToAssistant(buildMaintenancePayload(event, detail, now, settings.payload.host, expiresAt));
+  const result = await postToAssistant(buildMaintenancePayload(event, detail, now, settings.payload.host));
   if (result.ok) writePrivateFile(files.maintenance, JSON.stringify({ ...state, [key]: now.toISOString() }));
   console.log(`maintenance ${event}: ${result.ok ? "sent" : result.reason}`);
-}
-
-async function checkCredentialExpiry(now: Date, settings: WatchSettings): Promise<void> {
-  const meta = readJsonFile<CredentialMeta>(files.credentialMeta);
-  if (!meta) return;
-  const left = Date.parse(meta.expiresAt) - now.getTime();
-  if (left > 3 * DAY) return;
-  await sendMaintenance(
-    "lastCredentialWarningAt",
-    "t3.gateway_credential_expiring",
-    "The gateway's T3 credential expires soon. On the server run: grok-t3 pair",
-    now,
-    settings,
-    meta.expiresAt,
-  );
 }
 
 export async function tick(db: Database, settings: WatchSettings, now = new Date()): Promise<string> {
@@ -93,7 +76,6 @@ export async function tick(db: Database, settings: WatchSettings, now = new Date
     }
   }
   writePrivateFile(files.watchState, JSON.stringify(state));
-  await checkCredentialExpiry(now, settings);
   return outcome;
 }
 

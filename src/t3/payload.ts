@@ -3,7 +3,7 @@ import type { WaitingStatus } from "./state";
 
 /**
  * Webhook bodies sent to the assistant. Metadata only: no message text, no question text,
- * no file paths. The assistant reads content through the gateway when it needs it.
+ * no file paths. The assistant reads content through T3's own MCP when it needs it.
  */
 
 export const PAYLOAD_SCHEMA = 1;
@@ -43,13 +43,12 @@ export interface NeedsYouPayload {
 }
 
 export interface MaintenancePayload {
-  event: "t3.watcher_problem" | "t3.gateway_credential_expiring" | "t3.test";
+  event: "t3.watcher_problem" | "t3.test";
   schema: number;
   source: "grok-bot-setup";
   host: string;
   sentAt: string;
   detail: string;
-  expiresAt?: string;
 }
 
 export function buildNeedsYouPayload(
@@ -89,7 +88,6 @@ export function buildMaintenancePayload(
   detail: string,
   now: Date,
   host: string,
-  expiresAt?: string,
 ): MaintenancePayload {
   return {
     event,
@@ -98,6 +96,5 @@ export function buildMaintenancePayload(
     host,
     sentAt: now.toISOString(),
     detail,
-    ...(expiresAt ? { expiresAt } : {}),
   };
 }

@@ -20,7 +20,7 @@ bun install
 scripts/install.sh install
 ```
 
-This creates `~/.config/grok-bot-setup/` (0700) with `config.env` and `secrets/`, installs two user units, and links `grok-t3` into `~/.local/bin`. Neither service starts until its secrets exist.
+This creates `~/.config/grok-bot-setup/` (0700) with `config.env` and `secrets/`, installs the watcher's user unit, and links `grok-t3` into `~/.local/bin`. The watcher does not start until its secrets exist.
 
 Check what it sees:
 
@@ -43,22 +43,13 @@ grok-t3 status
 
    ```bash
    grok-t3 test-webhook          # the assistant should say "T3 alerts are connected."
-   scripts/install.sh install watcher
+   scripts/install.sh install
    journalctl --user -u grok-t3-watcher -f
    ```
 
 You can stop here if you only want alerts.
 
-## 2. The gateway's credentials
-
-```bash
-grok-t3 pair             # full-access ceiling, so it can answer full-access threads
-grok-t3 new-bearer
-```
-
-`grok-t3 pair auto` or `grok-t3 pair approval-required` gives a lower ceiling: the gateway then cannot answer threads running in a broader mode. The grant shows up in T3 under Settings → Sharing & access as **grok-bot-setup gateway**.
-
-## 3. Cloudflare
+## 2. Cloudflare
 
 ### API token (setup only)
 
@@ -68,26 +59,32 @@ Create a custom API token at dash.cloudflare.com → My Profile → API Tokens w
 |---|---|
 | Account | Cloudflare Tunnel: Edit |
 | Account | Access: Apps and Policies: Edit |
-| Account | Access: Service Tokens: Edit |
-| Account | Access: Organizations, Identity Providers, and Groups: Read |
+| Account | Access: Organizations, Identity Providers, and Groups: Edit |
 | Zone (your zone only) | DNS: Edit |
 | Zone (your zone only) | Zone: Read |
 
-Save it to a 0600 file. You can delete the token from Cloudflare when setup is done. You only need it again for `teardown`.
+Identity Providers needs Edit only if your account has no one-time PIN login yet; provisioning adds one. You can delete the token from Cloudflare when setup is done. You only need it again for `teardown`.
 
 ### Provision
 
-Pick a hostname nobody would guess, like `t3hook-<random>.example.com`.
+Pick a hostname nobody would guess, like `t3-<random>.example.com`, and the email that may open the sign-in pages.
 
 ```bash
 umask 077; cat > ~/cf-token              # paste, Enter, Ctrl-D
 CLOUDFLARE_API_TOKEN_FILE=~/cf-token bin/grok-t3-cloudflare provision \
   --zone example.com \
-  --hostname t3hook-x7k2.example.com \
+  --hostname t3-x7k2.example.com \
+  --allow-email you@example.com \
   --out ~/.config/grok-bot-setup/handoff
 ```
 
-This creates the tunnel (locally managed), a proxied CNAME, an Access service token, a Service Auth policy that allows only that token, and an Access app on the hostname. IDs go to `~/.config/grok-bot-setup/cloudflare.json` for teardown. The tunnel credentials, the service token and `access.env` go to the handoff directory, all 0600, never printed.
+This creates:
+
+- the tunnel (locally managed) and a proxied CNAME;
+- an Access app on the whole hostname that allows only your email, with a one-time PIN;
+- a second Access app that bypasses Access for the six paths the assistant's servers call.
+
+IDs go to `~/.config/grok-bot-setup/cloudflare.json` for teardown. The tunnel credentials go to the handoff directory (0600), never printed.
 
 If your token cannot read the Zero Trust organization, add `--team-domain yourteam.cloudflareaccess.com`.
 
@@ -96,41 +93,36 @@ If your token cannot read the Zero Trust organization, add `--team-domain yourte
 ```bash
 scripts/install-tunnel.sh install \
   --tunnel-id <tunnel id printed above> \
-  --hostname t3hook-x7k2.example.com \
+  --hostname t3-x7k2.example.com \
   --credentials ~/.config/grok-bot-setup/handoff/tunnel.json
 shred -u ~/.config/grok-bot-setup/handoff/tunnel.json
 ```
 
-This installs `cloudflared` from Cloudflare's signed apt repository if needed, writes `/etc/cloudflared/grok-t3/` (root, 0600), and starts `cloudflared-grok-t3.service` as a sandboxed `DynamicUser`.
+This installs `cloudflared` from Cloudflare's signed apt repository if needed, writes `/etc/cloudflared/grok-t3/` (root, 0600), and starts `cloudflared-grok-t3.service` as a sandboxed `DynamicUser`. It forwards to T3 on `127.0.0.1:3773`; pass `--port` if yours differs.
 
-## 4. Start the gateway
-
-```bash
-cat ~/.config/grok-bot-setup/handoff/access.env >> ~/.config/grok-bot-setup/config.env
-scripts/install.sh install gateway
-journalctl --user -u grok-t3-gateway -n 5     # "access enforced, read-write"
-```
-
-Check from outside that the edge blocks you without the token. Both should print `401`:
+### Check it from outside
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' -X POST https://t3hook-x7k2.example.com/mcp
-curl -s -o /dev/null -w '%{http_code}\n' https://t3hook-x7k2.example.com/anything
+h=https://t3-x7k2.example.com
+curl -s -o /dev/null -w '%{http_code}  /mcp without a token (want 401)\n' -X POST $h/mcp
+curl -s $h/.well-known/oauth-authorization-server | grep -o '"issuer":"[^"]*"'   # want your https hostname
+curl -s -o /dev/null -w '%{http_code}  approval page (want 302 to your Access login)\n' $h/connect-agent
+curl -s -o /dev/null -w '%{http_code}  rest of T3 (want 404)\n' $h/api/auth/clients
 ```
 
-## 5. Connect the assistant
+## 3. Connect the assistant
 
-Add the MCP connector and the answering instructions from [grok-routine.md](grok-routine.md), then shred the handoff file with the service token.
+Add the MCP connector and the answering instructions from [grok-routine.md](grok-routine.md). The connector opens T3's sign-in: log in to Access with the PIN from your email, then enter a pairing code on T3's page and choose the access level. [how-it-works.md](how-it-works.md#signing-in) shows how to get a pairing code.
 
 ## Updating
 
 ```bash
 cd ~/Code/grok-bot-setup && git pull && bun install
 scripts/install.sh install
-systemctl --user restart grok-t3-watcher grok-t3-gateway
+systemctl --user restart grok-t3-watcher
 ```
 
-After a T3 update, run `grok-t3 status`. If it reports a schema problem, alerts are off until this project is updated for the new T3.
+After a T3 update, run `grok-t3 status`. If it reports a schema problem, alerts are off until this project is updated for the new T3. If the assistant's sign-in page stops loading, T3 may have moved a path the tunnel allowlist needs.
 
 ## Removing everything
 
@@ -142,4 +134,4 @@ CLOUDFLARE_API_TOKEN_FILE=~/cf-token bin/grok-t3-cloudflare teardown
 scripts/install.sh uninstall --purge
 ```
 
-Then revoke **grok-bot-setup gateway** in T3 (Settings → Sharing & access), delete the routine and the connector in Grok Bot, and delete the Cloudflare API token.
+Then revoke the assistant's client in T3 (Settings → Sharing & access), delete the routine and the connector in Grok Bot, and delete the Cloudflare API token.

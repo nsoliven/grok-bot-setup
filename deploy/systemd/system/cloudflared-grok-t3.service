@@ -1,6 +1,6 @@
 # Installed by scripts/install-tunnel.sh. Runs as a throwaway user with no access to /home.
 [Unit]
-Description=Cloudflare Tunnel for grok-bot-setup (routes one hostname to the gateway only)
+Description=Cloudflare Tunnel for grok-bot-setup (routes one hostname's MCP sign-in paths to T3 only)
 Documentation=https://github.com/nsoliven/grok-bot-setup
 After=network-online.target
 Wants=network-online.target

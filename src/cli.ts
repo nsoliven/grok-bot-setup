@@ -1,9 +1,7 @@
 import { existsSync, rmSync } from "node:fs";
-import { join } from "node:path";
-import { paths, readJsonFile, writePrivateFile, writeSecret } from "./lib/config";
+import { paths, readJsonFile, writePrivateFile } from "./lib/config";
 import { postToAssistant } from "./lib/webhook";
-import { files, readPausedUntil, type CredentialMeta } from "./t3/files";
-import { pair, type PairAccess } from "./t3/pair";
+import { files, readPausedUntil } from "./t3/files";
 import { buildMaintenancePayload, buildNeedsYouPayload } from "./t3/payload";
 import { EMPTY_STATE, episodeKey, isNotifiable, type WatchState } from "./t3/policy";
 import { openT3State, readSnapshot } from "./t3/state";
@@ -11,13 +9,11 @@ import { loadWatchSettings } from "./t3/watcher";
 
 const USAGE = `grok-t3 <command>
 
-  status               What is waiting, what was sent, pause and credential state
+  status               What is waiting, what was sent, and whether alerts are paused
   preview              Print the webhook body the watcher would send for everything waiting now
-  pause <30m|2h|1d>    Stop alerts for a while (the gateway keeps working)
+  pause <30m|2h|1d>    Stop alerts for a while (answering from chat keeps working)
   resume               End a pause
   test-webhook         Send a t3.test event to the assistant
-  pair [access]        Get the gateway a T3 MCP credential (full-access | auto | approval-required)
-  new-bearer           Generate a new gateway bearer into the secrets dir (prints nothing)
 `;
 
 function parseDuration(text: string | undefined): number {
@@ -46,8 +42,6 @@ async function status(): Promise<void> {
   console.log(`\nAlerts in the last 24h: ${sends.length}/${settings.policy.dailyCap}${sends.length ? ` (last ${minutesAgo(sends.at(-1)!, now)} ago)` : ""}`);
   const paused = readPausedUntil();
   console.log(`Paused: ${paused && paused > now ? `until ${paused.toLocaleString()}` : "no"}`);
-  const meta = readJsonFile<CredentialMeta>(files.credentialMeta);
-  console.log(`Gateway T3 credential: ${meta ? `${meta.access}, expires ${new Date(meta.expiresAt).toLocaleString()}` : "not paired"}`);
 }
 
 async function preview(): Promise<void> {
@@ -82,18 +76,6 @@ async function main(argv: string[]): Promise<void> {
       );
       console.log(result.ok ? `Delivered (HTTP ${result.status}).` : `Failed: ${result.reason}`);
       if (!result.ok) process.exitCode = 1;
-      return;
-    }
-    case "pair": {
-      const access = (arg ?? "full-access") as PairAccess;
-      if (!["full-access", "auto", "approval-required"].includes(access)) throw new Error("access must be full-access, auto or approval-required");
-      const meta = await pair(access);
-      console.log(`Paired (${meta.access}). Credential expires ${new Date(meta.expiresAt).toLocaleString()}. No gateway restart needed.`);
-      return;
-    }
-    case "new-bearer": {
-      writeSecret("gateway-bearer", Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url"));
-      console.log(`Wrote ${join(paths.secretsDir, "gateway-bearer")}. Restart the gateway, then update the assistant's Authorization header.`);
       return;
     }
     default:

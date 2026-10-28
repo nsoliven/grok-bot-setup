@@ -2,7 +2,7 @@
 
 ## What counts as "waiting on you"
 
-The watcher and gateway share one reader, [`src/t3/state.ts`](../src/t3/state.ts). It opens T3's `statev2.sqlite` read-only and follows T3's own awareness rules (`projectThreadAwarenessV2` in T3's source):
+The watcher's reader, [`src/t3/state.ts`](../src/t3/state.ts). It opens T3's `statev2.sqlite` read-only and follows T3's own awareness rules (`projectThreadAwarenessV2` in T3's source):
 
 | Status | When | Counts for alerts when |
 |---|---|---|
@@ -23,7 +23,7 @@ Never counted: subagent threads, archived or deleted threads, finished threads y
 4. Episodes that started waiting more than `NOTIFY_MAX_FIRST_NOTICE_AGE_MIN` ago (default 12 hours) never get a first notice, so a restart does not dump a backlog on you.
 5. `grok-t3 pause 2h` holds everything until the pause ends.
 
-There are no "resolved" events: they would wake the assistant for nothing. If it needs to know whether something is still waiting, it calls `list_waiting`.
+There are no "resolved" events: they would wake the assistant for nothing. If it needs to know whether something is still waiting, it asks T3 over MCP.
 
 ## Webhook payloads
 
@@ -66,31 +66,48 @@ Every POST carries `Authorization: <your routine's value>` and a JSON body. Fiel
 
 ### Maintenance events
 
-At most one per kind per day. The body has `event`, `schema`, `source`, `host`, `sentAt`, `detail` and, for credential expiry, `expiresAt`.
+At most one per kind per day. The body has `event`, `schema`, `source`, `host`, `sentAt` and `detail`.
 
 | `event` | Meaning |
 |---|---|
 | `t3.watcher_problem` | The watcher cannot read T3's state, usually after a T3 update changed its tables. Alerts are off until fixed. |
-| `t3.gateway_credential_expiring` | The gateway's T3 credential expires within 3 days. Run `grok-t3 pair`. |
 | `t3.test` | Sent by `grok-t3 test-webhook`. |
 
-## The gateway's tools
+## Answering: T3's own MCP through your tunnel
 
-[`src/t3/gateway.ts`](../src/t3/gateway.ts) is a stateless Streamable HTTP MCP server on `127.0.0.1:47731/mcp`. Every request needs `Authorization: Bearer <gateway bearer>` and a valid `Cf-Access-Jwt-Assertion` that Cloudflare Access adds after checking the service token.
+The assistant connects to T3's `/mcp` as an outside agent, as T3's `docs/user/outside-agents.md` describes for hosted agents. The only difference is the route: your Cloudflare Tunnel instead of T3 Connect.
 
-| Tool | Does | Refuses when |
+T3 builds its OAuth URLs from the request's `Host` and `X-Forwarded-Proto`. cloudflared passes the public hostname and Cloudflare sets `https`, so T3 advertises `https://<your hostname>` as the issuer without any T3 setting.
+
+### What the tunnel lets through
+
+| Path | Called by | Access login? |
 |---|---|---|
-| `list_waiting` | Every thread waiting on you, read or unread, with what to answer it with | — |
-| `read_waiting_thread` | The pending question(s), via T3's `t3_pending_request_read`, and the agent's latest message, each truncated to 4,000 characters and marked untrusted | The thread is not waiting |
-| `answer_question` | T3's `t3_pending_request_respond` (or `t3_pending_request` with `action: "respond"` on newer T3) with `answers` keyed by question id | The thread has no such pending question, read-only mode, or the daily cap |
-| `reply_to_thread` | T3's `t3_thread_send` with `mode: "queue"`, so it starts the next turn and never steers or interrupts | The thread is not finished or failed, you have opened it in T3 since it ended, read-only mode, or the daily cap |
+| `/mcp` | The assistant's servers, with T3's bearer token | Bypassed |
+| `/.well-known/oauth-protected-resource`, `…/mcp`, `/.well-known/oauth-authorization-server` | The assistant's servers, to discover the sign-in | Bypassed |
+| `/oauth/mcp/register`, `/oauth/mcp/token` | The assistant's servers: client registration, code exchange | Bypassed |
+| `/oauth/mcp/authorize`, `/oauth/mcp/approval`, `/oauth/mcp/decision` | Your browser, approving the sign-in | Required |
+| `/connect-agent`, `/assets/*`, icons and manifest | Your browser: T3's approval page | Required |
+| `/api/auth/session`, `/.well-known/t3/environment` | Your browser: two read-only calls the page makes on load | Required |
+| Everything else, including `/ws` and the rest of `/api` | Nobody | 404 at the tunnel |
 
-Writes run one at a time. The daily cap (`GATEWAY_DAILY_WRITE_CAP`, default 30) counts every attempt, including ones T3 refused, and JSON-RPC batch requests are rejected, so parallel or batched calls cannot get past it. Unexpected errors reach the assistant as a generic message; the details stay in the journal.
+### Signing in
 
-The gateway calls T3's own MCP over loopback with a credential from `grok-t3 pair`. That command mints a 10-minute single-use pairing code with the running T3's CLI and completes T3's OAuth flow (dynamic client registration, PKCE S256, pairing-code approval, code exchange) without a browser. T3 MCP grants last 30 days and cannot be refreshed, so you pair again before expiry; the watcher reminds you.
+1. You add the connector with the MCP URL and OAuth. The assistant discovers T3's sign-in, registers itself, and opens T3's authorize URL in your browser.
+2. Cloudflare Access asks for your email and sends a one-time PIN.
+3. T3's approval page names the assistant and where the approval goes (its callback host). You enter a pairing code and pick the access level.
+4. T3 redirects to the assistant's callback with a one-minute code, which the assistant exchanges for a 30-day token.
 
-## Why not just expose T3's MCP?
+Get a pairing code in T3 under Settings → Sharing & access, or on the host:
 
-- **Power.** An operate grant whose ceiling covers full-access threads can call `t3_thread_launch`, configure threads, push code, and change settings. In the cloud, that is a remote shell. The gateway only forwards three T3 calls, and only for threads waiting on you.
-- **Auth fit.** T3's MCP uses OAuth, builds its URLs from the `Host` and `X-Forwarded-Proto` headers, and has no refresh tokens. Putting Cloudflare Access in front blocks OAuth discovery unless those endpoints are opened to the internet. The gateway takes static headers, which an assistant connector supports directly.
-- **Privacy.** T3's MCP can read every thread. The gateway can read only threads waiting on you.
+```bash
+t3 auth pairing create --ttl 10m --label "Grok Bot" \
+  --scope orchestration:read --scope orchestration:operate \
+  --scope settings:write --scope source-control:write
+```
+
+The last two scopes are needed only for a full-access ceiling. Use the `t3` binary of the running server (`~/.t3/runtime/versions/<version>/t3`); an older `t3` on your `PATH` may not match.
+
+## Why the gateway is gone
+
+Earlier versions put a four-tool gateway between the assistant and T3. It gave the assistant less power, but it had to be maintained against T3's changing tool names, and it could not do what T3's own MCP does (start threads, read any thread, work across linked machines). Now the security boundary is in front of T3 instead of beside it: the tunnel's path allowlist, Access on the browser pages, and the ceiling you choose at approval.

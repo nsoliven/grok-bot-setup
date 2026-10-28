@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# grok-t3: status, pause, pairing and webhook tests for grok-bot-setup's T3 integration.
+# grok-t3: status, pause and webhook tests for grok-bot-setup's T3 alerts.
 set -euo pipefail
 repo="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
 config="$HOME/.config/grok-bot-setup/config.env"

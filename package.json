@@ -1,7 +1,7 @@
 {
   "name": "grok-bot-setup",
   "version": "0.1.0",
-  "description": "Connect Grok Bot to services on your own Linux box without exposing it. First integration: T3 Code needs-you alerts and answers.",
+  "description": "Connect Grok Bot to services on your own Linux box with the smallest exposure. First integration: T3 Code alerts when you're forgetting threads, and T3's own MCP over your Cloudflare tunnel.",
   "license": "MIT",
   "type": "module",
   "private": true,
@@ -10,13 +10,7 @@
     "test": "bun test",
     "typecheck": "tsc --noEmit -p .",
     "watcher": "bun run src/t3/watcher.ts",
-    "gateway": "bun run src/t3/gateway.ts",
     "check-secrets": "scripts/check-secrets.sh"
-  },
-  "dependencies": {
-    "@modelcontextprotocol/sdk": "^1.32.2",
-    "jose": "^6.2.13",
-    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/bun": "latest",

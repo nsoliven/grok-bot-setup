@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Installs the watcher and gateway as systemd user services. No sudo needed.
-#   scripts/install.sh install [watcher] [gateway]   (default: both)
-#   scripts/install.sh uninstall [--purge]           (--purge also deletes config, secrets and state)
+# Installs the watcher as a systemd user service. No sudo needed.
+#   scripts/install.sh install
+#   scripts/install.sh uninstall [--purge]   (--purge also deletes config, secrets and state)
 #   scripts/install.sh status
 set -euo pipefail
 
@@ -12,7 +12,7 @@ secrets_dir="$config_dir/secrets"
 unit_dir="$config_home/systemd/user"
 state_dir="$HOME/.local/state/grok-bot-setup"
 bun="$(command -v bun || echo "$HOME/.bun/bin/bun")"
-units=(grok-t3-watcher grok-t3-gateway)
+units=(grok-t3-watcher)
 
 die() { echo "error: $*" >&2; exit 1; }
 
@@ -25,8 +25,6 @@ do_install() {
   systemctl --user show-environment >/dev/null 2>&1 || die "systemd user manager is not available."
   [[ -x "$bun" ]] || die "Bun is required (https://bun.sh)."
   [[ "$repo$bun" =~ ^[A-Za-z0-9_./-]+$ ]] || die "Clone into a path without spaces or special characters (systemd units embed it)."
-
-  local wanted=("$@"); [[ ${#wanted[@]} -gt 0 ]] || wanted=(watcher gateway)
 
   (cd "$repo" && "$bun" install --frozen-lockfile --production >/dev/null)
 
@@ -46,25 +44,11 @@ do_install() {
   install -d "$HOME/.local/bin"
   ln -sf "$repo/bin/grok-t3" "$HOME/.local/bin/grok-t3"
 
-  for component in "${wanted[@]}"; do
-    case "$component" in
-      watcher)
-        if require_secret grok-webhook-url && require_secret grok-webhook-authorization; then
-          systemctl --user enable --now grok-t3-watcher.service && echo "watcher: running"
-        else
-          echo "watcher: installed but not started (add the secrets above)"
-        fi ;;
-      gateway)
-        if ! grep -Eq '^ACCESS_AUD=.+' "$config_dir/config.env"; then
-          echo "gateway: installed but not started (set ACCESS_TEAM_DOMAIN and ACCESS_AUD in config.env first)"
-        elif require_secret gateway-bearer && require_secret t3-mcp-token; then
-          systemctl --user enable --now grok-t3-gateway.service && echo "gateway: running"
-        else
-          echo "gateway: installed but not started (run: grok-t3 new-bearer && grok-t3 pair)"
-        fi ;;
-      *) die "unknown component: $component" ;;
-    esac
-  done
+  if require_secret grok-webhook-url && require_secret grok-webhook-authorization; then
+    systemctl --user enable --now grok-t3-watcher.service && echo "watcher: running"
+  else
+    echo "watcher: installed but not started (add the secrets above)"
+  fi
 
   if [[ "$(loginctl show-user "$USER" -p Linger --value 2>/dev/null)" != yes ]]; then
     echo "Note: services stop when you log out. To keep them running: sudo loginctl enable-linger $USER"
@@ -80,14 +64,14 @@ do_uninstall() {
   [[ "$(readlink -f "$HOME/.local/bin/grok-t3" 2>/dev/null)" == "$repo/bin/grok-t3" ]] && rm -f "$HOME/.local/bin/grok-t3"
   if [[ "${1:-}" == --purge ]]; then
     rm -rf "$config_dir" "$state_dir"
-    echo "Removed services, config, secrets and state. Also revoke the T3 grant in Settings > Sharing & access."
+    echo "Removed the watcher, config, secrets and state."
   else
-    echo "Removed services. Config and secrets kept in $config_dir (use --purge to delete)."
+    echo "Removed the watcher. Config and secrets kept in $config_dir (use --purge to delete)."
   fi
 }
 
 case "${1:-}" in
-  install) shift; do_install "$@" ;;
+  install) do_install ;;
   uninstall) shift; do_uninstall "$@" ;;
   status) systemctl --user --no-pager status "${units[@]/%/.service}" || true ;;
   *) sed -n '2,5p' "$0"; exit 1 ;;

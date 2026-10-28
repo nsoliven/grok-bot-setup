@@ -68,7 +68,6 @@ const REQUIRED_COLUMNS: Record<string, string[]> = {
   ],
   orchestration_v2_projection_runs: ["run_id", "thread_id", "ordinal", "status", "requested_at", "completed_at"],
   orchestration_v2_projection_runtime_requests: ["runtime_request_id", "thread_id", "kind", "status", "created_at"],
-  orchestration_v2_projection_messages: ["thread_id", "role", "streaming", "created_at", "payload_json"],
   projection_projects: ["project_id", "title"],
 };
 
@@ -205,18 +204,4 @@ export function classifyThreads(
 
 function earliest(requests: PendingRequestRow[]): string {
   return requests.reduce((min, request) => (request.createdAt < min ? request.createdAt : min), requests[0]!.createdAt);
-}
-
-/** The agent's latest finished message in a thread, for the gateway's on-demand read. */
-export function readLastAgentMessage(db: Database, threadId: string): { text: string; at: string } | null {
-  const row = db
-    .query<{ text: string | null; at: string }, [string]>(
-      `SELECT json_extract(payload_json, '$.text') AS text, created_at AS at
-         FROM orchestration_v2_projection_messages
-        WHERE thread_id = ?1 AND role = 'assistant' AND streaming = 0
-        ORDER BY created_at DESC
-        LIMIT 1`,
-    )
-    .get(threadId);
-  return row?.text ? { text: row.text, at: row.at } : null;
 }

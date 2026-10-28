@@ -6,7 +6,11 @@ credentials-file: /run/credentials/cloudflared-grok-t3.service/tunnel.json
 no-autoupdate: true
 
 ingress:
+  # Only what T3's MCP sign-in and MCP itself need. T3's app, API and websocket stay unreachable.
+  #   assistant servers: /mcp, OAuth discovery, /oauth/mcp/register, /oauth/mcp/token
+  #   your browser (behind your Access login): /oauth/mcp/authorize, /approval, /decision, the
+  #   /connect-agent page with its assets and icons, and the two read-only calls it boots with.
   - hostname: HOSTNAME
-    path: ^/mcp$
-    service: http://127.0.0.1:GATEWAY_PORT
+    path: ^/(mcp|\.well-known/oauth-(authorization-server|protected-resource(/mcp)?)|\.well-known/t3/environment|api/auth/session|oauth/mcp/(register|token|authorize|approval|decision)|connect-agent|assets/[A-Za-z0-9._-]+|favicon\.ico|apple-touch-icon\.png|manifest\.webmanifest)$
+    service: http://127.0.0.1:T3_PORT
   - service: http_status:404
