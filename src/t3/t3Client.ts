@@ -29,7 +29,7 @@ export async function callT3(name: T3ToolName, args: Record<string, unknown>, to
   });
   await client.connect(transport);
   try {
-    const result = await client.callTool({ name, arguments: args });
+    const result = await client.callTool(await resolveTool(client, name, args));
     const content = Array.isArray(result.content) ? result.content : [];
     const text = content
       .map((part) => (part && typeof part === "object" && "text" in part && typeof part.text === "string" ? part.text : ""))
@@ -38,6 +38,24 @@ export async function callT3(name: T3ToolName, args: Record<string, unknown>, to
   } finally {
     await client.close();
   }
+}
+
+const MERGED_PENDING_REQUEST: Partial<Record<T3ToolName, string>> = {
+  t3_pending_request_read: "read",
+  t3_pending_request_respond: "respond",
+};
+
+/**
+ * T3 nightlies after 2026-10-26 merged the two pending-request tools into `t3_pending_request` with an
+ * `action`. Ask the server which one it has, so a T3 update does not break answering. Drop the old names
+ * once no supported T3 still ships them.
+ */
+async function resolveTool(client: Client, name: T3ToolName, args: Record<string, unknown>) {
+  const action = MERGED_PENDING_REQUEST[name];
+  if (!action) return { name, arguments: args };
+  const tools = (await client.listTools()).tools.map((tool) => tool.name);
+  if (tools.includes(name) || !tools.includes("t3_pending_request")) return { name, arguments: args };
+  return { name: "t3_pending_request", arguments: { action, ...args } };
 }
 
 export async function listT3Tools(token: string): Promise<string[]> {

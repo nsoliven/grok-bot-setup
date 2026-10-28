@@ -131,9 +131,18 @@ test/                 alert policy, state rules, gateway auth and refusals
 
 ## Compatibility
 
-T3 has no public API for "have I opened this thread", so the watcher reads T3's own SQLite projections read-only and mirrors T3's own awareness rules. It checks the columns it needs whenever it opens the database; if a T3 update changes them, you get one `t3.watcher_problem` alert instead of silence. Answering goes through T3's official MCP tools (`t3_pending_request_respond`, `t3_thread_send`).
+T3 has no public API for "have I opened this thread", so the watcher reads T3's own SQLite projections read-only and mirrors T3's own awareness rules. It checks the columns it needs whenever it opens the database; if a T3 update changes them, you get one `t3.watcher_problem` alert instead of silence. Answering goes through T3's official MCP tools: `t3_thread_send`, and `t3_pending_request_read`/`_respond`, or their merged form `t3_pending_request` in T3 nightlies after 2026-10-26. The gateway asks T3 which one it has.
 
 Approvals ("Allow running this command?") cannot be granted over T3's MCP at all, so those alerts tell you to open T3.
+
+### Why not connect Grok to T3's own MCP?
+
+T3 supports outside agents directly: turn on T3 Connect, give a hosted assistant the environment's `/mcp` URL, and sign in with OAuth (see T3's `docs/user/outside-agents.md`). Since late October 2026, linked environments let that one connection reach your other machines too. If you want to launch and steer any thread on any machine from chat, use that.
+
+This project exists for a narrower job:
+
+- **Alerts only when you're clearly forgetting.** T3's push notifications fire on every finish, failure, question and approval. The watcher waits, batches, caps and reminds once.
+- **A smaller surface.** T3's MCP gives the assistant every thread, project and setting the grant allows, and T3 Connect makes the whole T3 server reachable through T3's relay. The gateway exposes four tools, only for threads that are waiting on you, behind Cloudflare Access on a single path.
 
 ## Development
 

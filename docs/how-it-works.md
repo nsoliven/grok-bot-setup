@@ -82,7 +82,7 @@ At most one per kind per day. The body has `event`, `schema`, `source`, `host`, 
 |---|---|---|
 | `list_waiting` | Every thread waiting on you, read or unread, with what to answer it with | — |
 | `read_waiting_thread` | The pending question(s), via T3's `t3_pending_request_read`, and the agent's latest message, each truncated to 4,000 characters and marked untrusted | The thread is not waiting |
-| `answer_question` | T3's `t3_pending_request_respond` with `answers` keyed by question id | The thread has no such pending question, read-only mode, or the daily cap |
+| `answer_question` | T3's `t3_pending_request_respond` (or `t3_pending_request` with `action: "respond"` on newer T3) with `answers` keyed by question id | The thread has no such pending question, read-only mode, or the daily cap |
 | `reply_to_thread` | T3's `t3_thread_send` with `mode: "queue"`, so it starts the next turn and never steers or interrupts | The thread is not finished or failed, you have opened it in T3 since it ended, read-only mode, or the daily cap |
 
 Writes run one at a time. The daily cap (`GATEWAY_DAILY_WRITE_CAP`, default 30) counts every attempt, including ones T3 refused, and JSON-RPC batch requests are rejected, so parallel or batched calls cannot get past it. Unexpected errors reach the assistant as a generic message; the details stay in the journal.
