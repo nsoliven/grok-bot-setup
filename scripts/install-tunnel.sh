@@ -22,7 +22,7 @@ install_cloudflared() {
   sudo apt-get install -y -qq cloudflared
 }
 
-install() {
+do_install() {
   local tunnel_id="" hostname="" credentials="" port=47731
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -51,7 +51,7 @@ install() {
   sudo systemctl --no-pager --lines=5 status "$unit" || true
 }
 
-uninstall() {
+do_uninstall() {
   sudo systemctl disable --now "$unit" 2>/dev/null || true
   sudo rm -f "/etc/systemd/system/$unit"
   sudo rm -rf "$etc"
@@ -60,7 +60,7 @@ uninstall() {
 }
 
 case "${1:-}" in
-  install) shift; install "$@" ;;
-  uninstall) uninstall ;;
+  install) shift; do_install "$@" ;;
+  uninstall) do_uninstall ;;
   *) sed -n '2,5p' "$0"; exit 1 ;;
 esac

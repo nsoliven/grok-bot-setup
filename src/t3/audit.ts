@@ -15,6 +15,7 @@ export interface AuditEntry {
 
 export interface AuditLog {
   record(entry: AuditEntry): void;
+  /** Attempts, not just successes, so a loop of refused sends still runs into the cap. */
   writesInLastDay(now: Date): number;
 }
 
@@ -33,9 +34,8 @@ export function fileAuditLog(path: string): AuditLog {
       return readFileSync(path, "utf8")
         .split("\n")
         .filter(Boolean)
-        .slice(-500)
         .map((line) => JSON.parse(line) as AuditEntry)
-        .filter((entry) => entry.ok && Date.parse(entry.at) >= cutoff).length;
+        .filter((entry) => Date.parse(entry.at) >= cutoff).length;
     },
   };
 }

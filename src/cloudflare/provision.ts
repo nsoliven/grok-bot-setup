@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { paths, readJsonFile, writePrivateFile } from "../lib/config";
+import { ensurePrivateDir, paths, readJsonFile, writePrivateFile } from "../lib/config";
 
 /**
  * Creates (and tears down) everything Cloudflare-side, through the API:
@@ -66,6 +66,7 @@ async function provision(args: string[]): Promise<void> {
   const out = flag(args, "out");
   const name = args.includes("--name") ? flag(args, "name") : "grok-bot-setup-t3";
   if (!hostname.endsWith(`.${zoneName}`)) throw new Error("--hostname must be inside --zone.");
+  ensurePrivateDir(out);
   if (readJsonFile<Partial<Provisioned>>(recordFile())?.accountId) throw new Error(`Already provisioned (${recordFile()}). Run teardown first.`);
 
   const [zone] = await cf<Array<{ id: string; account: { id: string } }>>("GET", `/zones?name=${encodeURIComponent(zoneName)}`);

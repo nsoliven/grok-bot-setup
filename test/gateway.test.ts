@@ -25,7 +25,7 @@ function waiting(overrides: Partial<WaitingThread> = {}): WaitingThread {
 function setup(overrides: Partial<GatewayDeps> = {}) {
   const calls: Array<{ name: T3ToolName; args: Record<string, unknown> }> = [];
   const entries: AuditEntry[] = [];
-  const audit: AuditLog = { record: (entry) => entries.push(entry), writesInLastDay: () => entries.filter((e) => e.ok).length };
+  const audit: AuditLog = { record: (entry) => entries.push(entry), writesInLastDay: () => entries.length };
   const deps: GatewayDeps = {
     bearer: BEARER,
     access: null,
@@ -122,6 +122,59 @@ describe("gateway tools", () => {
     await callTool(capped.handler, "reply_to_thread", { threadId: "done", message: "one" });
     expect((await callTool(capped.handler, "reply_to_thread", { threadId: "done", message: "two" })).text).toContain("daily limit");
     expect(capped.calls).toHaveLength(1);
+  });
+
+  test("parallel writes cannot slip past the daily cap", async () => {
+    const slowT3 = setup({
+      dailyWriteCap: 1,
+      callT3: async () => {
+        await Bun.sleep(20);
+        return { text: "{}", isError: false };
+      },
+    });
+    const sends = ["a", "b", "c"].map((message) => callTool(slowT3.handler, "reply_to_thread", { threadId: "done", message }));
+    const results = await Promise.all(sends);
+    expect(results.filter((r) => !r.isError)).toHaveLength(1);
+    expect(slowT3.entries).toHaveLength(1);
+  });
+
+  test("rejects JSON-RPC batches", async () => {
+    const { handler, calls } = setup();
+    const body = JSON.stringify([
+      { jsonrpc: "2.0", id: 1, method: "tools/call", params: { name: "reply_to_thread", arguments: { threadId: "done", message: "a" } } },
+      { jsonrpc: "2.0", id: 2, method: "tools/call", params: { name: "reply_to_thread", arguments: { threadId: "done", message: "b" } } },
+    ]);
+    const response = await handler(
+      new Request("http://127.0.0.1:47731/mcp", {
+        method: "POST",
+        headers: { "content-type": "application/json", accept: "application/json, text/event-stream", authorization: `Bearer ${BEARER}` },
+        body,
+      }),
+    );
+    expect(response.status).toBe(400);
+    expect(calls).toEqual([]);
+  });
+
+  test("will not reply to a finished thread you already opened in T3", async () => {
+    const { handler, calls } = setup({
+      snapshot: () => ({ takenAt: "", lastSeenInT3At: null, items: [waiting({ unread: false })] }),
+    });
+    const reply = await callTool(handler, "reply_to_thread", { threadId: "done", message: "hi" });
+    expect(reply.isError).toBe(true);
+    expect(reply.text).toContain("opened");
+    expect(calls).toEqual([]);
+  });
+
+  test("internal errors reach the assistant without details, and a failed send is still audited", async () => {
+    const { handler, entries } = setup({
+      callT3: async () => {
+        throw new Error("ENOENT: /home/someone/.config/grok-bot-setup/secrets/t3-mcp-token");
+      },
+    });
+    const reply = await callTool(handler, "reply_to_thread", { threadId: "done", message: "hi" });
+    expect(reply.isError).toBe(true);
+    expect(reply.text).not.toContain("/home/");
+    expect(entries).toMatchObject([{ tool: "reply_to_thread", ok: false }]);
   });
 
   test("marks thread content as untrusted when reading", async () => {

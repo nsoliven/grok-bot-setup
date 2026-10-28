@@ -4,7 +4,7 @@
 #   ~/.config/grok-bot-setup/private-words.txt
 set -euo pipefail
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-words="${XDG_CONFIG_HOME:-$HOME/.config}/grok-bot-setup/private-words.txt"
+words="$HOME/.config/grok-bot-setup/private-words.txt"
 status=0
 
 if command -v gitleaks >/dev/null; then

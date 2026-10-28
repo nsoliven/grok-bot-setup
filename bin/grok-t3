@@ -2,6 +2,6 @@
 # grok-t3: status, pause, pairing and webhook tests for grok-bot-setup's T3 integration.
 set -euo pipefail
 repo="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
-config="${XDG_CONFIG_HOME:-$HOME/.config}/grok-bot-setup/config.env"
+config="$HOME/.config/grok-bot-setup/config.env"
 if [[ -f "$config" ]]; then set -a; . "$config"; set +a; fi
 exec "${BUN:-$(command -v bun || echo "$HOME/.bun/bin/bun")}" run "$repo/src/cli.ts" "$@"

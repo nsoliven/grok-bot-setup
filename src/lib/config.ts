@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, renameSync, statSync, writeFileSync } from "node:fs";
+import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, statSync, writeSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
 
@@ -66,12 +66,27 @@ export function writeSecret(name: string, value: string): void {
   writePrivateFile(join(paths.secretsDir, name), `${value}\n`);
 }
 
-/** Atomic write with 0600, so a crash never leaves a half-written state or secret file. */
+/**
+ * Atomic write with 0600, so a crash never leaves a half-written state or secret file.
+ * The temp file is created exclusively ("wx") under a random name, so a planted symlink cannot redirect it.
+ */
 export function writePrivateFile(path: string, contents: string): void {
   mkdirSync(dirname(path), { recursive: true, mode: 0o700 });
-  const temp = `${path}.${process.pid}.tmp`;
-  writeFileSync(temp, contents, { mode: 0o600 });
+  const temp = `${path}.${crypto.randomUUID()}.tmp`;
+  const fd = openSync(temp, "wx", 0o600);
+  try {
+    writeSync(fd, contents);
+    fsyncSync(fd);
+  } finally {
+    closeSync(fd);
+  }
   renameSync(temp, path);
+}
+
+/** Creates a 0700 directory, or refuses an existing one other users can read. */
+export function ensurePrivateDir(path: string): void {
+  mkdirSync(path, { recursive: true, mode: 0o700 });
+  assertPrivate(path, "directory");
 }
 
 export function readJsonFile<T>(path: string): T | null {

@@ -44,7 +44,8 @@ async function mintPairingCode(access: PairAccess): Promise<string> {
   const args = ["auth", "pairing", "create", "--json", "--ttl", "10m", "--label", CLIENT_NAME];
   for (const scope of SCOPES[access]) args.push("--scope", scope);
   const child = Bun.spawn([runningT3Binary(), ...args], { stdout: "pipe", stderr: "pipe", env: { ...process.env, T3CODE_HOME: paths.t3Home } });
-  const [stdout, code] = await Promise.all([new Response(child.stdout).text(), child.exited]);
+  // Drain stderr too: an unread pipe that fills up would hang the child.
+  const [stdout, , code] = await Promise.all([new Response(child.stdout).text(), new Response(child.stderr).text(), child.exited]);
   if (code !== 0) throw new Error(`t3 auth pairing create exited with ${code}.`);
   const start = stdout.indexOf("{");
   const parsed = JSON.parse(stdout.slice(start)) as { credential?: string };
@@ -96,18 +97,21 @@ export async function pair(access: PairAccess): Promise<CredentialMeta> {
     body: new URLSearchParams({ grant_type: "authorization_code", code, redirect_uri: REDIRECT_URI, client_id: clientId, code_verifier: verifier }),
   });
   if (!tokenResponse.ok) throw new Error(`T3 refused the code exchange (HTTP ${tokenResponse.status}).`);
-  const token = (await tokenResponse.json()) as { access_token: string; expires_in: number };
+  const token = (await tokenResponse.json()) as { access_token?: string; expires_in?: number };
+  if (!token.access_token) throw new Error("T3 returned no access token.");
 
   const tools = await listT3Tools(token.access_token);
   if (!tools.includes("t3_thread_send")) throw new Error("The new credential cannot see t3_thread_send.");
 
-  writeSecret(T3_TOKEN_SECRET, token.access_token);
   const now = new Date();
+  // T3 grants last 30 days; assume that if T3 ever omits expires_in, so the expiry warning still fires.
+  const lifetimeSeconds = Number.isFinite(token.expires_in) && token.expires_in! > 0 ? token.expires_in! : 30 * 86_400;
   const meta: CredentialMeta = {
     access,
     pairedAt: now.toISOString(),
-    expiresAt: new Date(now.getTime() + token.expires_in * 1000).toISOString(),
+    expiresAt: new Date(now.getTime() + lifetimeSeconds * 1000).toISOString(),
   };
+  writeSecret(T3_TOKEN_SECRET, token.access_token);
   writePrivateFile(files.credentialMeta, JSON.stringify(meta));
   return meta;
 }

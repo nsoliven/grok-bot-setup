@@ -6,11 +6,11 @@
 set -euo pipefail
 
 repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
+config_home="$HOME/.config"   # the units use %h/.config, so XDG overrides are not honoured
 config_dir="$config_home/grok-bot-setup"
 secrets_dir="$config_dir/secrets"
 unit_dir="$config_home/systemd/user"
-state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/grok-bot-setup"
+state_dir="$HOME/.local/state/grok-bot-setup"
 bun="$(command -v bun || echo "$HOME/.bun/bin/bun")"
 units=(grok-t3-watcher grok-t3-gateway)
 
@@ -20,10 +20,11 @@ require_secret() {
   [[ -s "$secrets_dir/$1" ]] || { echo "  missing secret: $secrets_dir/$1"; return 1; }
 }
 
-install() {
+do_install() {
   [[ "$(uname -s)" == Linux ]] || die "Linux with systemd is required."
   systemctl --user show-environment >/dev/null 2>&1 || die "systemd user manager is not available."
   [[ -x "$bun" ]] || die "Bun is required (https://bun.sh)."
+  [[ "$repo$bun" =~ ^[A-Za-z0-9_./-]+$ ]] || die "Clone into a path without spaces or special characters (systemd units embed it)."
 
   local wanted=("$@"); [[ ${#wanted[@]} -gt 0 ]] || wanted=(watcher gateway)
 
@@ -70,7 +71,7 @@ install() {
   fi
 }
 
-uninstall() {
+do_uninstall() {
   for unit in "${units[@]}"; do
     systemctl --user disable --now "$unit.service" 2>/dev/null || true
     rm -f "$unit_dir/$unit.service"
@@ -86,8 +87,8 @@ uninstall() {
 }
 
 case "${1:-}" in
-  install) shift; install "$@" ;;
-  uninstall) shift; uninstall "$@" ;;
+  install) shift; do_install "$@" ;;
+  uninstall) shift; do_uninstall "$@" ;;
   status) systemctl --user --no-pager status "${units[@]/%/.service}" || true ;;
   *) sed -n '2,5p' "$0"; exit 1 ;;
 esac
