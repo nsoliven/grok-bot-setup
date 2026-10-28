@@ -1,0 +1,40 @@
+# Installed by scripts/install-tunnel.sh. Runs as a throwaway user with no access to /home.
+[Unit]
+Description=Cloudflare Tunnel for grok-bot-setup (routes one hostname to the gateway only)
+Documentation=https://github.com/nsoliven/grok-bot-setup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=notify
+DynamicUser=yes
+# Both files stay root-only in /etc; systemd hands this service private copies under %d.
+LoadCredential=tunnel.json:/etc/cloudflared/grok-t3/tunnel.json
+LoadCredential=config.yml:/etc/cloudflared/grok-t3/config.yml
+ExecStart=/usr/bin/cloudflared --no-autoupdate tunnel --config %d/config.yml run
+Restart=on-failure
+RestartSec=5
+
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+
+[Install]
+WantedBy=multi-user.target

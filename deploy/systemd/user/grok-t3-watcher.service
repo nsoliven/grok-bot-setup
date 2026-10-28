@@ -1,0 +1,33 @@
+# Installed by scripts/install.sh, which fills in @REPO@ and @BUN@.
+[Unit]
+Description=grok-bot-setup watcher: tell the assistant when T3 threads are left waiting
+Documentation=https://github.com/nsoliven/grok-bot-setup
+After=network-online.target
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/grok-bot-setup/config.env
+Environment=BUN_RUNTIME_TRANSPILER_CACHE_PATH=0
+WorkingDirectory=@REPO@
+ExecStart=@BUN@ run @REPO@/src/t3/watcher.ts
+Restart=always
+RestartSec=30
+
+StateDirectory=grok-bot-setup
+StateDirectoryMode=0700
+UMask=0077
+# Reads T3's database and its own secrets; writes only its state directory.
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%S/grok-bot-setup
+PrivateTmp=yes
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+LockPersonality=yes
+SystemCallArchitectures=native
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+
+[Install]
+WantedBy=default.target

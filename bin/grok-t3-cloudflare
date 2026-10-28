@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# grok-t3-cloudflare: create or remove the tunnel, DNS record and Access app through Cloudflare's API.
+#   CLOUDFLARE_API_TOKEN_FILE=/path/to/token grok-t3-cloudflare provision --zone Z --hostname H --out DIR
+#   CLOUDFLARE_API_TOKEN_FILE=/path/to/token grok-t3-cloudflare teardown
+set -euo pipefail
+repo="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+exec "${BUN:-$(command -v bun || echo "$HOME/.bun/bin/bun")}" run "$repo/src/cloudflare/provision.ts" "$@"

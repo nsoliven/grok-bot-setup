@@ -1,0 +1,12 @@
+# /etc/cloudflared/grok-t3/config.yml, rendered by scripts/install-tunnel.sh.
+# Routing lives here on the host (a locally managed tunnel), so a change in the Cloudflare
+# dashboard cannot point this tunnel at anything else on the machine.
+tunnel: TUNNEL_ID
+credentials-file: /run/credentials/cloudflared-grok-t3.service/tunnel.json
+no-autoupdate: true
+
+ingress:
+  - hostname: HOSTNAME
+    path: ^/mcp$
+    service: http://127.0.0.1:GATEWAY_PORT
+  - service: http_status:404
