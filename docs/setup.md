@@ -36,7 +36,7 @@ grok-t3 status
    ```bash
    umask 077
    cat > ~/.config/grok-bot-setup/secrets/grok-webhook-url             # paste, Enter, Ctrl-D
-   cat > ~/.config/grok-bot-setup/secrets/grok-webhook-authorization   # paste, Enter, Ctrl-D
+   cat > ~/.config/grok-bot-setup/secrets/grok-webhook-authorization   # type "Bearer ", paste the key, Enter, Ctrl-D
    ```
 
 3. Test and start:

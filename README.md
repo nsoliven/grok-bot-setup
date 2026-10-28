@@ -73,7 +73,7 @@ scripts/install.sh install                  # config dir, watcher service, grok-
 
 # 1. Alerts. Save the routine's webhook URL and Authorization value (0600 files):
 #      ~/.config/grok-bot-setup/secrets/grok-webhook-url
-#      ~/.config/grok-bot-setup/secrets/grok-webhook-authorization
+#      ~/.config/grok-bot-setup/secrets/grok-webhook-authorization   ("Bearer " + the key)
 grok-t3 test-webhook
 scripts/install.sh install
 

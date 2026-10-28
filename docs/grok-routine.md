@@ -4,12 +4,12 @@ You need two things in Grok Bot: a **routine** with a webhook trigger (alerts in
 
 ## 1. Routine: "T3 needs-you alerts"
 
-Create a routine with a **webhook trigger**. Copy its URL and Authorization value into the secrets dir on your server:
+Create a routine with a **webhook trigger**. Copy its URL and key into the secrets dir on your server. The second file holds the whole header value, `Bearer ` followed by the key; a bare key gets HTTP 401.
 
 ```bash
 umask 077
 cat > ~/.config/grok-bot-setup/secrets/grok-webhook-url             # paste, Enter, Ctrl-D
-cat > ~/.config/grok-bot-setup/secrets/grok-webhook-authorization   # paste, Enter, Ctrl-D
+cat > ~/.config/grok-bot-setup/secrets/grok-webhook-authorization   # type "Bearer ", paste the key, Enter, Ctrl-D
 grok-t3 test-webhook
 ```
 
