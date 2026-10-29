@@ -114,6 +114,10 @@ curl -s -o /dev/null -w '%{http_code}  rest of T3 (want 404)\n' $h/api/auth/clie
 
 These checks pass from your own machine even when the assistant is blocked. Grok's connector calls from cloud servers with a non-browser user agent, and **Bot Fight Mode** answers it with a browser challenge it cannot solve. Grok reports that as a 403, and the request never reaches T3. On the free plan Bot Fight Mode applies to the whole domain and cannot be skipped for one hostname or path, so turn it off under Security → Settings, or use a domain where it is off. It is not one of the layers protecting T3; see [SECURITY.md](../SECURITY.md). Blocked calls show up in Security → Events as "Bot Fight Mode" on `/mcp`.
 
+### Local DNS that rewrites your domain
+
+If your home DNS (AdGuard Home, Pi-hole, the router) sends `*.your-domain` to a local reverse proxy, your browser reaches that proxy instead of Cloudflare and the approval page fails, often with `ERR_SSL_UNRECOGNIZED_NAME_ALERT`. Exclude the T3 hostname from the wildcard. In AdGuard Home, add a DNS rewrite whose answer is the hostname itself (`t3-x7k2.example.com` → `t3-x7k2.example.com`).
+
 ## 3. Connect the assistant
 
 Add the MCP connector and the answering instructions from [grok-routine.md](grok-routine.md). The connector opens T3's sign-in: log in to Access with the PIN from your email, then enter a pairing code on T3's page and choose the access level. [how-it-works.md](how-it-works.md#signing-in) shows how to get a pairing code.
